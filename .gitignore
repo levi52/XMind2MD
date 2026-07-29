@@ -1,0 +1,14 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- PyInstaller 构建产物 ----
+build/
+*.spec
+
+# ---- 打包输出 ----
+# 注：dist/ 为 PyInstaller 生成的 exe。
+dist/
