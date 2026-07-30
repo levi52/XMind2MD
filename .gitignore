@@ -12,3 +12,6 @@ build/
 # ---- 打包输出 ----
 # 注：dist/ 为 PyInstaller 生成的 exe。
 dist/
+
+.workbuddy/
+*.wrangler/

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XMind → Markdown 转换器</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='5' fill='%23d97757'/%3E%3Ccircle cx='11' cy='12' r='3.4' fill='%23d97757'/%3E%3Ccircle cx='37' cy='12' r='3.4' fill='%23d97757'/%3E%3Ccircle cx='24' cy='40' r='3.4' fill='%23d97757'/%3E%3Cpath d='M24 24 L11 12 M24 24 L37 12 M24 24 L24 40' stroke='%23d97757' stroke-width='2'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #faf8f5;
+      --surface: #ffffff;
+      --surface-2: #f4f1ec;
+      --text: #1c1917;
+      --muted: #78716c;
+      --accent: #d97757;        /* Claude clay */
+      --accent-strong: #b45309;
+      --accent-soft: #f6e7df;
+      --border: #e7e1d8;
+      --radius: 16px;
+      --shadow: 0 1px 2px rgba(28,25,23,.04), 0 8px 24px rgba(28,25,23,.05);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(1200px 520px at 50% -8%, #fff7f1 0%, rgba(255,247,241,0) 60%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 56px 20px 72px; }
+
+    /* 顶部条 */
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+    .brand .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .brand span { font-size: 14px; letter-spacing: .02em; color: var(--muted); }
+
+    header h1 {
+      font-size: clamp(26px, 4.4vw, 38px);
+      font-weight: 600;
+      letter-spacing: -.01em;
+      margin: 0 0 10px;
+      color: var(--text);
+    }
+    header p { color: var(--muted); margin: 0 0 30px; max-width: 60ch; }
+
+    .drop {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 46px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, box-shadow .2s, transform .08s, background .2s;
+      box-shadow: var(--shadow);
+    }
+    .drop:hover { border-color: var(--accent); }
+    .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .drop.drag { border-color: var(--accent); background: var(--accent-soft); transform: scale(1.004); }
+    .drop .glyph { color: var(--accent); margin-bottom: 14px; }
+    .drop strong { color: var(--text); }
+    .drop .hint { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+    .filebar {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+    .filebar.show { display: flex; }
+    .filebar .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .filebar .meta { color: var(--muted); font-size: 13px; }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      color: #fff;
+      background: var(--accent);
+      transition: filter .15s, transform .05s, background .15s;
+      font-weight: 500;
+    }
+    button:hover { filter: brightness(1.04); }
+    button:active { transform: translateY(1px); }
+    button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    button.ghost:hover { background: var(--surface-2); filter: none; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .actions .spacer { flex: 1; }
+
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff;
+      display: inline-block; vertical-align: -3px; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .alert {
+      margin-top: 16px; padding: 12px 16px; border-radius: 12px;
+      display: none; border: 1px solid #e7b8a8; background: #fbeee8; color: #9a3b22;
+    }
+    .alert.show { display: block; }
+
+    .stats {
+      display: none; gap: 28px; margin: 26px 0 6px; color: var(--muted); font-size: 14px;
+    }
+    .stats.show { display: flex; flex-wrap: wrap; }
+    .stats b { color: var(--accent-strong); font-size: 20px; font-weight: 600; display: block; line-height: 1.2; }
+
+    .result { display: none; margin-top: 22px; }
+    .result.show { display: block; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      padding: 8px 16px; border-radius: 10px; font-weight: 500;
+    }
+    .tab.active { color: #fff; border-color: var(--accent); background: var(--accent); }
+    .pane { display: none; }
+    .pane.active { display: block; }
+
+    .preview {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 26px 30px; max-height: 60vh; overflow: auto;
+      box-shadow: var(--shadow);
+    }
+    .preview h1 { font-size: 26px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; }
+    .preview h2 { font-size: 20px; color: var(--text); margin-top: 26px; }
+    .preview h3 { font-size: 16px; color: var(--accent-strong); font-weight: 600; }
+    .preview ul { padding-left: 22px; }
+    .preview li { margin: 5px 0; }
+    .preview code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-size: .92em; }
+    .preview table { border-collapse: collapse; margin: 12px 0; }
+    .preview th, .preview td { border: 1px solid var(--border); padding: 6px 12px; }
+    .preview pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow: auto; }
+    .preview pre code { background: none; padding: 0; }
+
+    textarea.raw {
+      width: 100%; min-height: 50vh; resize: vertical;
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px; line-height: 1.6;
+      box-shadow: var(--shadow);
+    }
+    textarea.raw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    footer { color: var(--muted); font-size: 13px; margin-top: 40px; text-align: center; }
+
+    @media (max-width: 600px) {
+      .wrap { padding: 36px 16px 56px; }
+      .stats { gap: 18px; }
+      .stats b { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <span>XMind to Markdown</span>
+    </div>
+
+    <header>
+      <h1>思维导图转 Markdown</h1>
+      <p>选择本地 <code>.xmind</code> 文件，<strong>全部在你的浏览器内</strong>解析并转换为 Markdown。文件不会上传到任何服务器，可离线使用。</p>
+    </header>
+
+    <main>
+      <div id="drop" class="drop" role="button" tabindex="0"
+           aria-label="点击或拖拽 .xmind 文件到此处上传">
+        <div class="glyph" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="24" cy="24" r="5"/>
+            <circle cx="11" cy="12" r="3.4"/>
+            <circle cx="37" cy="12" r="3.4"/>
+            <circle cx="24" cy="40" r="3.4"/>
+            <path d="M24 24 L11 12 M24 24 L37 12 M24 24 L24 40"/>
+          </svg>
+        </div>
+        <p><strong>点击选择</strong> 或将 <code>.xmind</code> 文件拖拽到此处</p>
+        <p class="hint">支持新版（content.json）与经典版（content.xml），最大 30MB</p>
+      </div>
+      <input id="file" type="file" accept=".xmind,application/vnd.xmind.workbook" class="sr-only" />
+
+      <div id="filebar" class="filebar" aria-live="polite">
+        <span class="name" id="fname">—</span>
+        <span class="meta" id="fmeta"></span>
+        <button class="ghost" id="clear" type="button">移除</button>
+      </div>
+
+      <div class="actions">
+        <button id="convert" type="button" disabled>转换</button>
+        <span class="spacer"></span>
+        <button class="ghost" id="copy" type="button" disabled>复制 Markdown</button>
+        <button class="ghost" id="download" type="button" disabled>下载 .md</button>
+      </div>
+
+      <div id="alert" class="alert" role="alert" aria-live="assertive"></div>
+
+      <div id="stats" class="stats" aria-live="polite">
+        <div><b id="st-sheets">0</b>工作表</div>
+        <div><b id="st-topics">0</b>顶层主题</div>
+        <div><b id="st-nodes">0</b>节点总数</div>
+      </div>
+
+      <section id="result" class="result" aria-label="转换结果">
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tab-preview" role="tab" aria-selected="true">渲染预览</button>
+          <button class="tab" id="tab-raw" role="tab" aria-selected="false">原始 Markdown</button>
+        </div>
+        <div class="pane active" id="pane-preview">
+          <div class="preview" id="preview"></div>
+        </div>
+        <div class="pane" id="pane-raw">
+          <textarea class="raw" id="raw" readonly></textarea>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      纯前端实现 · 数据不出浏览器
+    </footer>
+  </div>
+
+  <script src="lib/jszip.min.js"></script>
+  <script src="lib/marked.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
